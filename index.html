@@ -54,16 +54,70 @@
 
   <main id="appMain" class="app-main">
 
+    <!-- ===== Screen: Layout-Auswahl ===== -->
+    <section id="screen-layout" class="screen">
+      <div class="layout-pick">
+        <div class="hero">
+          <div class="hero-logo">
+            <img src="logo.png" alt="Feuerwehr Frankfurt am Main" class="hero-logo-img">
+          </div>
+          <h1>Mobile Abnahme</h1>
+          <p class="hero-sub">Welches Gerät verwendest du?</p>
+        </div>
+
+        <div class="layout-choices">
+          <button class="layout-card" data-layout="phone">
+            <div class="layout-icon">
+              <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="2" width="12" height="20" rx="2"/>
+                <line x1="12" y1="18" x2="12" y2="18"/>
+              </svg>
+            </div>
+            <div class="layout-name">Handy</div>
+            <div class="layout-desc">Kompakt, eine Position pro Bildschirm</div>
+          </button>
+
+          <button class="layout-card" data-layout="tablet">
+            <div class="layout-icon">
+              <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="12" y1="18" x2="12" y2="18"/>
+              </svg>
+            </div>
+            <div class="layout-name">Tablet</div>
+            <div class="layout-desc">Größere Bedienflächen, mehr Übersicht</div>
+          </button>
+
+          <button class="layout-card" data-layout="desktop">
+            <div class="layout-icon">
+              <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <div class="layout-name">PC</div>
+            <div class="layout-desc">Breites Layout, Übersicht und Wizard nebeneinander</div>
+          </button>
+        </div>
+
+        <div class="layout-foot">
+          <label class="tutorial-checkbox">
+            <input type="checkbox" id="layoutRemember" checked>
+            <span>Auswahl merken</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Screen: Start ===== -->
     <section id="screen-start" class="screen active">
       <div class="hero">
-        <div class="hero-mark">
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-          </svg>
+        <div class="hero-logo">
+          <img src="logo.png" alt="Feuerwehr Frankfurt am Main" class="hero-logo-img">
         </div>
         <h1>Mobile Abnahme</h1>
-        <p>Excel-Prüfprotokolle direkt am iPhone bearbeiten — schnell, robust, ohne Datenverlust.</p>
+        <p class="hero-sub">Excel-Prüfprotokolle direkt am Endgerät bearbeiten — schnell, robust, ohne Datenverlust.</p>
       </div>
 
       <div class="action-stack">
@@ -125,7 +179,7 @@
 
       <footer class="app-footer">
         <span>Offline-fähig · Auto-Speicherung · iOS-optimiert</span>
-        <span class="app-footer-credit">v2.3 · von Julian</span>
+        <span class="app-footer-credit">v2.4 · von Julian</span>
       </footer>
     </section>
 
@@ -247,7 +301,7 @@
 
   </main>
 
-  <!-- ===== Tutorial-Overlay ===== -->
+  <!-- ===== Tutorial-Overlay (Kurz - beim ersten Start) ===== -->
   <div id="tutorial" class="tutorial" hidden>
     <div class="tutorial-card">
       <button id="tutorialClose" class="tutorial-close" aria-label="Schließen">
@@ -268,6 +322,103 @@
           <span>Nicht mehr anzeigen</span>
         </label>
         <button id="tutorialOk" class="btn btn-primary btn-compact">Los geht's</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Ausführliche Anleitung (manuell aufrufbar) ===== -->
+  <div id="manual" class="tutorial" hidden>
+    <div class="tutorial-card manual-card">
+      <button id="manualClose" class="tutorial-close" aria-label="Schließen">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="tutorial-eyebrow">ANLEITUNG</div>
+      <h3 class="tutorial-title">Mobile Abnahme — vollständige Beschreibung</h3>
+
+      <div class="manual-section">
+        <h4>1. Workflow im Überblick</h4>
+        <p>Die App ist für die parallele Abnahme von bis zu vier Fahrzeugen durch ein Team gedacht. Ein Hauptfahrzeug wird durchgegangen, identische Befunde lassen sich mit einem Tipp auf weitere Fahrzeuge übernehmen.</p>
+        <ol>
+          <li>Excel-Protokoll aus ebox21 herunterladen, ZIP entpacken</li>
+          <li>In der App die Datei öffnen</li>
+          <li>Hauptfahrzeug auswählen, ggf. Sub-Fahrzeuge dazu</li>
+          <li>Positionen durchgehen, bewerten</li>
+          <li>Export als XLSX, Upload zurück in ebox21</li>
+        </ol>
+      </div>
+
+      <div class="manual-section">
+        <h4>2. Datei laden</h4>
+        <p><strong>Excels von ebox21 holen</strong> öffnet den Freigabe-Ordner in einem neuen Tab. Du lädst dort die ZIP-Datei mit allen Protokollen herunter, entpackst sie in den Dateien-Ordner deines Geräts.</p>
+        <p>Über <strong>Excel-Datei öffnen</strong> wählst du die gewünschte Datei aus. Die App erkennt automatisch alle Fahrzeuge und Prüfkriterien.</p>
+        <p>Wurde die Datei bereits einmal bearbeitet, erscheint zusätzlich <strong>Letzte Bearbeitung fortsetzen</strong> — direkter Wiedereinstieg an der Stelle, wo du aufgehört hast.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>3. Fahrzeuge wählen</h4>
+        <p>Auf der Fahrzeug-Übersicht siehst du alle erkannten HLF-Fahrzeuge mit ihrem Kennzeichen und Bearbeitungsstand. Schon zu mindestens 95 % bearbeitete Fahrzeuge wandern in den Bereich „abgenommen" und werden ausgeblendet.</p>
+        <p>Beim Antippen eines Fahrzeugs erscheint ein Modal, in dem du <strong>bis zu drei weitere Fahrzeuge</strong> als Sub-Fahrzeuge auswählen kannst. Diese werden bei der späteren Bearbeitung als „mit übernehmbar" angeboten — ideal wenn z. B. alle vier HLFs einer Baureihe denselben Mangel haben.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>4. Position prüfen</h4>
+        <p>Eine Position pro Seite, mit dem Original-Text aus der Excel-Vorlage in groß. Drei Status-Buttons:</p>
+        <ul>
+          <li><strong>Erledigt</strong> — alles in Ordnung. Beim Antippen automatisches Weiter zur nächsten Position</li>
+          <li><strong>Offen</strong> — noch nicht geprüft (Standard)</li>
+          <li><strong>Mangel</strong> — Notizfeld erscheint zur Beschreibung des Mangels</li>
+        </ul>
+        <p>Bei „Erledigt" wird im Excel-Export der Eintrag <code>iO</code> geschrieben. Bei „Mangel" der Wert <code>Mangel &lt;Beschreibung&gt;</code>.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>5. Auf weitere Fahrzeuge übernehmen</h4>
+        <p>Hast du Sub-Fahrzeuge ausgewählt, erscheint pro Position eine Übernahme-Sektion. Tippe einen Sub-Chip an, bevor du den Status setzt — der Chip wird gelb markiert mit Häkchen. Beim Klick auf „Erledigt" oder „Mangel" wird der Wert automatisch auf alle markierten Subs synchronisiert.</p>
+        <p>Steht bei einem Sub bereits ein anderer Wert, kommt eine Sammelabfrage zur Bestätigung. Notizen, die du nach der Übernahme im Mängelfeld änderst, wandern automatisch auf bereits synchrone Subs mit.</p>
+        <p>Sub-Markierungen werden bei jedem Positions-Wechsel zurückgesetzt — du entscheidest pro Position neu, welche Subs mitlaufen sollen.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>6. Bestehende Einträge</h4>
+        <p>Werte, die schon in der Original-Excel stehen (z. B. <code>iO 2 x 170 Ah</code>), werden beim Laden automatisch als erledigt erkannt und im Fortschritt mitgezählt. Solange du den Eintrag nicht änderst, bleibt der Original-Text beim Export erhalten.</p>
+        <p>Ausgegraute Zellen aus der Vorlage (in der Excel nicht zutreffend für dieses Fahrzeug) werden in der App ebenfalls als nicht-relevant markiert und übersprungen.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>7. Automatisches Speichern</h4>
+        <p>Jede Eingabe wird sofort im Browser-Speicher abgelegt. Auch nach App-Neustart, Geräte-Sperre oder Tab-Wechsel sind deine Eingaben sicher.</p>
+        <p>Der Speicher-Status ist oben rechts im Header sichtbar — grüner Punkt heißt alles synchron, gelber Punkt heißt es wird gerade gespeichert.</p>
+        <p>Über <strong>Sitzungen verwalten</strong> kannst du auch parallel mehrere Excel-Dateien in Bearbeitung halten und zwischen ihnen wechseln.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>8. Export und Upload</h4>
+        <p>In der Fahrzeug-Übersicht zwei Buttons:</p>
+        <ul>
+          <li><strong>Export als XLSX</strong> — speichert die bearbeitete Datei in den Downloads-Ordner. Dateiname enthält den Original-Namen plus Datum und Uhrzeit, damit die Zuordnung in ebox21 leicht fällt.</li>
+          <li><strong>Zu ebox21</strong> — öffnet den Upload-Ordner in einem neuen Tab. Dort wählst du die gerade exportierte Datei.</li>
+        </ul>
+        <p>Nach dem Export erscheint auch ein Dialog, der direkt zu ebox21 weiterführt.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>9. Einstellungen</h4>
+        <p>Auf der Startseite unter <strong>ebox21-Links ändern</strong> kannst du die Freigabe-URLs anpassen, falls sich diese ändern. Werden lokal im Browser gespeichert.</p>
+        <p>Im Header oben rechts: Lautsprecher-Icon zum Stummschalten der Bestätigungstöne.</p>
+      </div>
+
+      <div class="manual-section">
+        <h4>10. Tipps für den Praxis-Einsatz</h4>
+        <ul>
+          <li>Vorher die App über Safari aufrufen und über „Zum Home-Bildschirm" als Icon installieren — startet dann im Vollbild ohne Browser-Leiste</li>
+          <li>Bei Mehrteam-Abnahmen: pro Team eine separate Excel-Datei (nur das jeweilige Tabellenblatt) verteilen, am Ende manuell in Excel wieder zusammenführen</li>
+          <li>iPhone-Lautlosschalter beachten — bei aktiviertem Schalter spielen die Bestätigungstöne nicht</li>
+          <li>Beim Wechsel zu einem anderen Endgerät: Datei zwischenexportieren, auf dem neuen Gerät laden — die App synchronisiert sich nicht selbst zwischen Geräten</li>
+        </ul>
+      </div>
+
+      <div class="tutorial-foot">
+        <button id="manualOk" class="btn btn-primary btn-compact">Verstanden</button>
       </div>
     </div>
   </div>

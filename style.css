@@ -16,38 +16,30 @@ input, textarea { -webkit-appearance: none; appearance: none; }
 /* ---------- Tokens ---------- */
 :root {
   /* Surfaces */
-  --bg: #eef0f3;
+  --bg: #f4f1ec;                       /* warmes Sand-Beige */
   --bg-elevated: #ffffff;
-  --header-bg: #0f141a;
-  --header-bg-2: #182029;
-  --header-text: #f3f5f8;
-  --header-muted: #8d97a3;
-
-  /* Text */
-  --text: #0f141a;
-  --text-soft: #4a5563;
-  --text-muted: #6b7480;
-  --text-faint: #9aa3ad;
-
-  /* Borders */
-  --border: #d8dde3;
-  --border-soft: #e6eaef;
-  --border-strong: #c2c8d0;
-
-  /* Brand / Accents */
-  --accent: #c8201c;       /* Feuerwehrrot, dezent */
-  --accent-2: #a51916;
-  --accent-soft: #fdecea;
-  --primary: #1f2933;      /* Dunkler Primärton */
-
-  /* Status */
-  --status-open: #6b7480;
-  --status-open-bg: #eef0f3;
-  --status-open-border: #d8dde3;
-
-  --status-done: #0f7a4a;
-  --status-done-bg: #e7f5ee;
-  --status-done-border: #b9e0cc;
+  --bg-soft: #e9e3da;                  /* sand etwas dunkler */
+  --header-bg: #8E2E2D;                /* Feuerwehr-Rot */
+  --header-bg-2: #762523;
+  --header-text: #f0ebe2;              /* Sand-Hellgrau */
+  --header-muted: #d4c8b8;
+  --text: #1a1310;
+  --text-soft: #4a3c34;
+  --text-muted: #7a6a5e;
+  --text-faint: #a8998a;
+  --border: #d8ccbc;
+  --border-soft: #ebe2d4;
+  --border-strong: #b8a690;
+  --accent: #8E2E2D;                   /* Feuerwehr-Rot als Akzent */
+  --accent-2: #762523;
+  --accent-soft: #f5e6e3;
+  --primary: #1a1310;                  /* Dunkler Primärton */
+  --status-open: #7a6a5e;
+  --status-open-bg: #ebe2d4;
+  --status-open-border: #d8ccbc;
+  --status-done: #2d6a3f;
+  --status-done-bg: #e3eee5;
+  --status-done-border: #b8d4be;
 
   --status-defect: #c8201c;
   --status-defect-bg: #fdecea;
@@ -1726,4 +1718,236 @@ input:focus, textarea:focus { caret-color: var(--accent); }
 }
 .settings-actions .btn-tertiary {
   flex: 1;
+}
+
+/* ============================================================
+   Logo & Hero
+   ============================================================ */
+.hero-logo {
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto 16px;
+}
+.hero-logo-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.hero-sub {
+  color: var(--text-soft);
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+
+/* ============================================================
+   Layout-Auswahl
+   ============================================================ */
+.layout-pick {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
+}
+.layout-choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+.layout-card {
+  background: var(--bg-elevated);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 18px;
+  text-align: left;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.layout-card:hover,
+.layout-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(142, 46, 45, 0.12);
+  outline: none;
+}
+.layout-card:active {
+  transform: scale(0.98);
+}
+.layout-icon {
+  grid-row: span 2;
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  border-radius: 12px;
+  color: var(--accent);
+}
+.layout-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+.layout-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  grid-column: 2;
+}
+.layout-foot {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Tablet-Layout: zwei Spalten Layout-Cards */
+@media (min-width: 720px) {
+  .layout-choices {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .layout-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+    padding: 28px 18px;
+    gap: 10px;
+  }
+  .layout-icon {
+    grid-row: auto;
+    margin: 0 auto;
+  }
+  .layout-desc {
+    grid-column: auto;
+  }
+}
+
+/* ============================================================
+   Manual (ausführliche Anleitung)
+   ============================================================ */
+.manual-card {
+  max-width: 720px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+.manual-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+.manual-section:first-of-type {
+  border-top: none;
+  margin-top: 14px;
+  padding-top: 6px;
+}
+.manual-section h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 10px;
+  letter-spacing: 0.01em;
+}
+.manual-section p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-soft);
+  margin: 0 0 10px;
+}
+.manual-section ol,
+.manual-section ul {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-soft);
+  padding-left: 22px;
+  margin: 0 0 10px;
+}
+.manual-section li {
+  margin-bottom: 4px;
+}
+.manual-section code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
+/* ============================================================
+   Layout-Modi: Tablet & Desktop
+   ============================================================ */
+
+/* Tablet-Modus (manuell aktiviert, unabhängig von Viewport) */
+body.layout-tablet {
+  font-size: 16px;
+}
+body.layout-tablet .app-main {
+  max-width: 860px;
+  margin: 0 auto;
+}
+body.layout-tablet .status-btn {
+  min-height: 60px;
+  font-size: 17px;
+}
+body.layout-tablet .wizard-title {
+  font-size: 22px;
+}
+body.layout-tablet .btn-primary,
+body.layout-tablet .btn-tertiary,
+body.layout-tablet .btn-ebox {
+  min-height: 56px;
+}
+
+/* Desktop-Modus: deutlich breiter, mehrspaltig wo sinnvoll */
+body.layout-desktop {
+  font-size: 15px;
+}
+body.layout-desktop .app-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+body.layout-desktop .app-header {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+body.layout-desktop #screen-start .action-stack {
+  max-width: 560px;
+  margin: 0 auto;
+}
+body.layout-desktop #screen-vehicles .vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+body.layout-desktop #screen-vehicles .vehicle-card {
+  margin-bottom: 0;
+}
+body.layout-desktop #screen-items .wizard {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 24px;
+  align-items: start;
+}
+body.layout-desktop #screen-items .wizard-card {
+  max-width: none;
+}
+body.layout-desktop .status-btn {
+  min-height: 64px;
+  font-size: 17px;
+}
+body.layout-desktop .wizard-title {
+  font-size: 26px;
+  line-height: 1.3;
+}
+body.layout-desktop .hero-logo {
+  max-width: 320px;
+}
+
+/* Manual-Card auf Desktop größer */
+body.layout-desktop .manual-card,
+body.layout-tablet .manual-card {
+  max-width: 760px;
 }

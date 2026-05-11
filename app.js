@@ -2185,6 +2185,9 @@
     els.modal.hidden = true;
     els.toast.hidden = true;
 
+    // Layout-Modus aus localStorage anwenden oder Auswahl anzeigen
+    initLayout();
+
     els.fileInput.addEventListener('change', () => {
       const f = els.fileInput.files && els.fileInput.files[0];
       if (f) loadFromFile(f);
@@ -2196,7 +2199,7 @@
 
     els.manageBtn.addEventListener('click', () => navigateTo('sessions'));
     const helpBtn = document.getElementById('helpBtn');
-    if (helpBtn) helpBtn.addEventListener('click', () => showTutorial(true));
+    if (helpBtn) helpBtn.addEventListener('click', showManual);
     els.backBtn.addEventListener('click', () => navigateBack());
 
     els.exportBtn.addEventListener('click', exportXlsx);
@@ -2221,8 +2224,67 @@
       soundBtn.addEventListener('click', () => setSoundEnabled(!_soundEnabled));
     }
 
-    // Tutorial: jedes Mal anzeigen, außer "nicht mehr zeigen" wurde gewählt
+    // Manual-Schließen-Handler
+    const manualClose = document.getElementById('manualClose');
+    const manualOk = document.getElementById('manualOk');
+    const manualEl = document.getElementById('manual');
+    const closeManual = () => { if (manualEl) manualEl.hidden = true; };
+    if (manualClose) manualClose.onclick = closeManual;
+    if (manualOk) manualOk.onclick = closeManual;
+    if (manualEl) manualEl.addEventListener('click', e => { if (e.target === manualEl) closeManual(); });
+
+    // Kurz-Tutorial: jedes Mal anzeigen, außer "nicht mehr zeigen" wurde gewählt
     initTutorial();
+  }
+
+  /* ============================================================
+     Layout-Modi: phone / tablet / desktop
+     ============================================================ */
+  function applyLayout(mode) {
+    document.body.classList.remove('layout-phone', 'layout-tablet', 'layout-desktop');
+    document.body.classList.add('layout-' + mode);
+  }
+
+  function initLayout() {
+    let saved = null;
+    try { saved = localStorage.getItem('abnahme:layout'); } catch (_) {}
+    if (saved) {
+      applyLayout(saved);
+      return; // Direkt zur Startseite
+    }
+    // Keine gespeicherte Auswahl → Layout-Pick-Screen anzeigen
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const pick = document.getElementById('screen-layout');
+    if (pick) pick.classList.add('active');
+    // Default-Sense: kleinster Bildschirm → Phone, mittel → Tablet, groß → Desktop
+    const w = window.innerWidth;
+    const suggest = w < 700 ? 'phone' : w < 1100 ? 'tablet' : 'desktop';
+    // Den entsprechenden Card hervorheben? Vorerst nur Auto-Anwendung als Default
+    applyLayout(suggest);
+    // Click-Handler für Layout-Cards
+    document.querySelectorAll('.layout-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const mode = card.dataset.layout;
+        applyLayout(mode);
+        const remember = document.getElementById('layoutRemember');
+        if (remember && remember.checked) {
+          try { localStorage.setItem('abnahme:layout', mode); } catch (_) {}
+        }
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const start = document.getElementById('screen-start');
+        if (start) start.classList.add('active');
+      });
+    });
+  }
+
+  function showManual() {
+    const m = document.getElementById('manual');
+    if (m) {
+      m.hidden = false;
+      // Scroll-Position der ausführlichen Anleitung auf Anfang setzen
+      const card = m.querySelector('.manual-card');
+      if (card) card.scrollTop = 0;
+    }
   }
 
   function showTutorial(force) {
