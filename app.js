@@ -1796,8 +1796,21 @@
       const newBytes = fflate.zipSync(zipped, { level: 6 });
 
       // Download anstoßen
-      const blob = new Blob([newBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const filename = generateExportFilename();
+      // Macro-Detection NICHT anhand des Dateinamens (kann auch nach ebox21-Download
+      // umbenannt sein), sondern direkt am Content: Hat das ZIP eine vbaProject.bin
+      // oder ist im Content-Types ein macroEnabled-Typ deklariert? Dann ist es xlsm.
+      let isMacro = false;
+      if (zipped['xl/vbaProject.bin']) {
+        isMacro = true;
+      } else if (zipped['[Content_Types].xml']) {
+        const ct = strFromU8(zipped['[Content_Types].xml']);
+        if (/macroEnabled/i.test(ct)) isMacro = true;
+      }
+      const mime = isMacro
+        ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const blob = new Blob([newBytes], { type: mime });
+      const filename = generateExportFilename(isMacro ? 'xlsm' : 'xlsx');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
@@ -1863,11 +1876,11 @@
     if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s);
     return fflate.strToU8(s);
   }
-  function generateExportFilename() {
+  function generateExportFilename(ext) {
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
     const stamp = `${pad(d.getDate())}${pad(d.getMonth() + 1)}${d.getFullYear()}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-    return `abnahme_${stamp}.xlsx`;
+    return `abnahme_${stamp}.${ext || 'xlsx'}`;
   }
 
   /* ============================================================
