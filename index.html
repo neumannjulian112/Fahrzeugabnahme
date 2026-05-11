@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Abnahme">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f141a">
+  <meta name="format-detection" content="telephone=no">
+  <title>Abnahme — Mobile Prüfung</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header id="appHeader" class="app-header">
+    <button id="backBtn" class="icon-btn" aria-label="Zurück" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="header-titles">
+      <div class="header-eyebrow" id="headerEyebrow">PRÜFPROTOKOLL</div>
+      <div class="header-title" id="headerTitle">Abnahme</div>
+    </div>
+    <button id="soundToggle" class="icon-btn sound-toggle" aria-label="Töne an/aus" title="Töne">
+      <svg id="soundIconOn" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/><path d="M19.07 4.93a10 10 0 010 14.14"/></svg>
+      <svg id="soundIconOff" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    </button>
+    <div class="header-status" id="headerStatus" title="Speicherstatus">
+      <span class="dot" id="saveDot"></span>
+      <span class="save-text" id="saveText">Bereit</span>
+    </div>
+  </header>
+
+  <!-- ===== Progress (kontextabhängig) ===== -->
+  <div id="progressContainer" class="progress-container" hidden>
+    <div class="progress-stats">
+      <span class="stat stat-done"><strong id="statDone">0</strong><span>erledigt</span></span>
+      <span class="stat stat-defect"><strong id="statDefect">0</strong><span>Mängel</span></span>
+      <span class="stat stat-open"><strong id="statOpen">0</strong><span>offen</span></span>
+      <span class="stat stat-percent"><strong id="statPercent">0%</strong><span>abgeschlossen</span></span>
+    </div>
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+  </div>
+
+  <main id="appMain" class="app-main">
+
+    <!-- ===== Screen: Start ===== -->
+    <section id="screen-start" class="screen active">
+      <div class="hero">
+        <div class="hero-mark">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+        </div>
+        <h1>Mobile Abnahme</h1>
+        <p>Excel-Prüfprotokolle direkt am iPhone bearbeiten — schnell, robust, ohne Datenverlust.</p>
+      </div>
+
+      <div class="action-stack">
+        <a id="eboxDownloadBtn" class="btn btn-ebox" target="_blank" rel="noopener">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </span>
+          <span class="btn-content">
+            <span class="btn-label">Excels von ebox21 holen</span>
+            <span class="btn-sub">Öffnet den ebox21-Ordner zum Herunterladen</span>
+          </span>
+        </a>
+
+        <label for="fileInput" class="btn btn-primary">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </span>
+          <span class="btn-content">
+            <span class="btn-label">Excel-Datei öffnen</span>
+            <span class="btn-sub">.xlsx aus den Dateien wählen</span>
+          </span>
+        </label>
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" hidden>
+
+        <button id="resumeBtn" class="btn btn-resume" hidden>
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 9 12 12 3 15 21 18 12 21 12"/></svg>
+          </span>
+          <span class="btn-content">
+            <span class="btn-label">Letzte Bearbeitung fortsetzen</span>
+            <span class="btn-sub" id="resumeSubtitle">…</span>
+          </span>
+        </button>
+
+        <details class="ebox-section">
+          <summary>
+            <span>ebox21-Links ändern</span>
+            <span class="ebox-hint">einstellungen</span>
+          </summary>
+          <div class="ebox-form">
+            <p class="hint">Falls sich die Freigabe-Links ändern, kannst du sie hier anpassen. Werden im Browser dieses Geräts gespeichert.</p>
+            <label class="settings-label">Download-Link (Ordner)</label>
+            <input type="url" id="eboxDownloadUrl" placeholder="https://amt37-ffm.ebox21.de/public/download-shares/..." autocomplete="off" autocapitalize="off" spellcheck="false">
+            <label class="settings-label">Upload-Link</label>
+            <input type="url" id="eboxUploadUrl" placeholder="https://amt37-ffm.ebox21.de/#/public/shares-uploads/..." autocomplete="off" autocapitalize="off" spellcheck="false">
+            <div class="settings-actions">
+              <button id="eboxSaveBtn" class="btn btn-tertiary btn-compact">Speichern</button>
+              <button id="eboxResetBtn" class="btn btn-link" style="flex: 0 0 auto; padding: 8px 12px;">Auf Standard zurücksetzen</button>
+            </div>
+          </div>
+        </details>
+
+        <button id="manageBtn" class="btn btn-link">Sitzungen verwalten</button>
+      </div>
+
+      <footer class="app-footer">
+        <span>Offline-fähig · Auto-Speicherung · iOS-optimiert</span>
+        <span class="app-footer-credit">v2.0 · von Julian</span>
+      </footer>
+    </section>
+
+    <!-- ===== Screen: Vehicles (Matrix-Modus) ===== -->
+    <section id="screen-vehicles" class="screen">
+      <div class="screen-head">
+        <div class="screen-eyebrow">DATEI</div>
+        <h2 id="vehiclesFilename">…</h2>
+        <div class="screen-meta" id="vehiclesMeta">Fahrzeug wählen</div>
+      </div>
+      <div id="vehicleList" class="card-grid"></div>
+      <div id="completedSection" hidden>
+        <details class="ebox-section" style="margin-top: 12px;">
+          <summary>
+            <span id="completedSummary">Bereits abgenommene Fahrzeuge anzeigen</span>
+            <span class="ebox-hint">erledigt</span>
+          </summary>
+          <div id="completedList" class="card-grid" style="padding: 0 12px 12px;"></div>
+        </details>
+      </div>
+      <div class="action-row">
+        <button id="vehiclesExportBtn" class="btn btn-primary btn-compact">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </span>
+          <span>Export als XLSX</span>
+        </button>
+        <a id="eboxUploadBtn" class="btn btn-ebox btn-compact" target="_blank" rel="noopener">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </span>
+          <span>Zu ebox21</span>
+        </a>
+      </div>
+      <div class="action-row" style="margin-top: 6px;">
+        <button id="vehiclesCloseBtn" class="btn btn-tertiary btn-compact" style="flex: 1;">Datei schließen</button>
+      </div>
+    </section>
+
+    <!-- ===== Screen: Sheets ===== -->
+    <section id="screen-sheets" class="screen">
+      <div class="screen-head">
+        <div class="screen-eyebrow">DATEI</div>
+        <h2 id="filenameTitle">…</h2>
+        <div class="screen-meta" id="filenameMeta">Arbeitsblatt wählen</div>
+      </div>
+      <div id="sheetList" class="card-grid"></div>
+      <div class="action-row">
+        <button id="exportBtn" class="btn btn-primary btn-compact">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </span>
+          <span>Export als XLSX</span>
+        </button>
+        <button id="closeFileBtn" class="btn btn-tertiary btn-compact">Datei schließen</button>
+      </div>
+    </section>
+
+    <!-- ===== Screen: Items (Wizard, eine Position pro Seite) ===== -->
+    <section id="screen-items" class="screen">
+      <div class="wizard-top">
+        <div class="wizard-counter">
+          <span id="wizPos">1</span><span class="wizard-counter-sep">/</span><span id="wizTotal">1</span>
+        </div>
+        <div class="wizard-context" id="wizContext">…</div>
+        <button id="wizOverviewBtn" class="icon-btn" aria-label="Übersicht">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="wizard-progress">
+        <div id="wizProgressFill" class="wizard-progress-fill"></div>
+      </div>
+
+      <div id="wizCard" class="wizard-card"></div>
+
+      <div id="wizEmpty" class="empty-state" hidden>
+        <p>Keine Prüfpunkte mit diesem Filter.</p>
+      </div>
+
+      <div class="wizard-nav">
+        <button id="wizPrev" class="btn btn-tertiary btn-compact wizard-nav-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          <span>Zurück</span>
+        </button>
+        <button id="wizNext" class="btn btn-primary btn-compact wizard-nav-btn">
+          <span>Weiter</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Versteckte Elemente für interne Logik / Stats-Berechnung im JS -->
+      <span id="cntAll" hidden>0</span>
+      <span id="cntOpen" hidden>0</span>
+      <span id="cntDone" hidden>0</span>
+      <span id="cntDefect" hidden>0</span>
+      <span id="sheetEyebrow" hidden></span>
+      <span id="sheetTitle" hidden></span>
+      <span id="sheetMeta" hidden></span>
+      <input id="searchInput" hidden>
+      <div class="filter-row" hidden></div>
+      <div id="itemList" hidden></div>
+      <div id="emptyState" hidden></div>
+      <button id="bulkExportBtn" hidden></button>
+    </section>
+
+    <!-- ===== Screen: Sessions ===== -->
+    <section id="screen-sessions" class="screen">
+      <div class="screen-head">
+        <div class="screen-eyebrow">VERWALTEN</div>
+        <h2>Sitzungen</h2>
+        <div class="screen-meta">Lokal gespeicherte Bearbeitungen</div>
+      </div>
+      <div id="sessionList" class="card-grid"></div>
+      <div id="sessionEmpty" class="empty-state" hidden>
+        <p>Keine gespeicherten Sitzungen vorhanden.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Tutorial-Overlay ===== -->
+  <div id="tutorial" class="tutorial" hidden>
+    <div class="tutorial-card">
+      <button id="tutorialClose" class="tutorial-close" aria-label="Schließen">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="tutorial-eyebrow">SO FUNKTIONIERT'S</div>
+      <h3 class="tutorial-title">Mobile Abnahme in 4 Schritten</h3>
+      <ol class="tutorial-list">
+        <li><strong>Datei laden</strong> — Excel-Protokoll aus den Dateien öffnen.</li>
+        <li><strong>Fahrzeuge wählen</strong> — Hauptfahrzeug + bis zu 3 weitere für gemeinsame Bearbeitung.</li>
+        <li><strong>Position prüfen</strong> — Status setzen, Mangel beschreiben, mit „Weiter".</li>
+        <li><strong>Übernehmen</strong> — gleichen Befund auf weitere Fahrzeuge mit einem Tipp übernehmen.</li>
+      </ol>
+      <p class="tutorial-hint">Klick auf „Erledigt" oder „Mangel" gibt einen kurzen Bestätigungston. Im Header oben rechts kannst du Töne deaktivieren.</p>
+      <div class="tutorial-foot">
+        <label class="tutorial-checkbox">
+          <input type="checkbox" id="tutorialDontShow">
+          <span>Nicht mehr anzeigen</span>
+        </label>
+        <button id="tutorialOk" class="btn btn-primary btn-compact">Los geht's</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast ===== -->
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- ===== Modal: Bestätigung ===== -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 id="modalTitle">Bestätigen</h3>
+      <p id="modalText">…</p>
+      <div class="modal-actions">
+        <button id="modalCancel" class="btn btn-tertiary btn-compact">Abbrechen</button>
+        <button id="modalOk" class="btn btn-primary btn-compact">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
