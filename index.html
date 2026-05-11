@@ -116,12 +116,16 @@
           </div>
         </details>
 
-        <button id="manageBtn" class="btn btn-link">Sitzungen verwalten</button>
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
+          <button id="manageBtn" class="btn btn-link">Sitzungen verwalten</button>
+          <span style="color: var(--text-faint); align-self: center;">·</span>
+          <button id="helpBtn" class="btn btn-link">Anleitung anzeigen</button>
+        </div>
       </div>
 
       <footer class="app-footer">
         <span>Offline-fähig · Auto-Speicherung · iOS-optimiert</span>
-        <span class="app-footer-credit">v2.1 · von Julian</span>
+        <span class="app-footer-credit">v2.3 · von Julian</span>
       </footer>
     </section>
 
@@ -257,7 +261,7 @@
         <li><strong>Position prüfen</strong> — Status setzen, Mangel beschreiben, mit „Weiter".</li>
         <li><strong>Übernehmen</strong> — gleichen Befund auf weitere Fahrzeuge mit einem Tipp übernehmen.</li>
       </ol>
-      <p class="tutorial-hint">Klick auf „Erledigt" oder „Mangel" gibt einen kurzen Bestätigungston. Im Header oben rechts kannst du Töne deaktivieren.</p>
+      <p class="tutorial-hint">Bestätigungstöne lassen sich im Header oben rechts deaktivieren.</p>
       <div class="tutorial-foot">
         <label class="tutorial-checkbox">
           <input type="checkbox" id="tutorialDontShow">

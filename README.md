@@ -1,4 +1,4 @@
-# Abnahme-App v2.1
+# Abnahme-App v2.3
 
 Mobile Web-App für Fahrzeug-Abnahmeprotokolle, iPhone-optimiert.
 
@@ -11,9 +11,14 @@ Mobile Web-App für Fahrzeug-Abnahmeprotokolle, iPhone-optimiert.
 
 ## Lokal nutzen
 
-`abnahme-app.html` (im Hauptverzeichnis dieses Downloads) ist Single-File, einfach im Browser öffnen.
+`abnahme-app.html` ist Single-File, einfach im Browser öffnen.
 
-## Hinweis zum Dateiformat
+## Funktionen
 
-Lädt die App eine .xlsm-Datei (mit Makros), wird sie auch als .xlsm gespeichert.
-Das passt zum Excel-Format und vermeidet Excel-"Datei beschädigt"-Fehler.
+- Excel-Dateien laden, mehrere Fahrzeuge parallel bearbeiten
+- Sub-Fahrzeuge für gemeinsame Eintragungen
+- iO/Mangel-Status mit optionaler Notiz pro Position
+- Auto-Speicherung, Bestätigungstöne, Tutorial wieder aufrufbar
+- ebox21 Download/Upload direkt verlinkt
+- Export immer als saubere .xlsx ohne Makros
+- Exportierte Datei trägt den Original-Namen + Datum/Zeit

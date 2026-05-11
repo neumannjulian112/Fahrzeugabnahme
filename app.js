@@ -512,7 +512,15 @@
       if (state.mode === 'matrix') {
         navigateTo('vehicles');
         const total = state.matrix.sheets.reduce((s, sh) => s + sh.rows.length, 0);
-        toast(`${state.matrix.vehicles.length} Fahrzeuge · ${total} Prüfkriterien`, 'success');
+        // Format kurz anzeigen: xlsm (mit Makros) wird auch als xlsm exportiert
+        let formatHint = 'xlsx';
+        try {
+          const probe = fflate.unzipSync(new Uint8Array(buffer));
+          if (probe['xl/vbaProject.bin'] || (probe['[Content_Types].xml'] && /macroEnabled/i.test(strFromU8(probe['[Content_Types].xml'])))) {
+            formatHint = 'xlsm (mit Makros)';
+          }
+        } catch (_) {}
+        toast(`${state.matrix.vehicles.length} Fahrzeuge · ${total} Prüfkriterien · ${formatHint}`, 'success');
       } else {
         navigateTo('sheets');
       }
@@ -1724,6 +1732,55 @@
     });
   }
 
+  // Entfernt sämtliche Makro-Komponenten aus einem entpackten XLSX-ZIP, damit
+  // die Datei beim Re-Packen als saubere .xlsx ohne Makros funktioniert.
+  function stripMacros(zipped) {
+    // 1. vbaProject.bin und alle ähnlichen Binärdateien löschen
+    for (const key of Object.keys(zipped)) {
+      if (/vbaProject\.bin$/i.test(key)) delete zipped[key];
+      if (/vbaProjectSignature\.bin$/i.test(key)) delete zipped[key];
+    }
+
+    // 2. [Content_Types].xml bereinigen
+    if (zipped['[Content_Types].xml']) {
+      let ct = strFromU8(zipped['[Content_Types].xml']);
+      // Workbook-Content-Type von macro-enabled auf normal umstellen
+      ct = ct.replace(
+        /application\/vnd\.ms-excel\.sheet\.macroEnabled\.main\+xml/g,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml'
+      );
+      // Komplette VBA-Override-Einträge entfernen
+      ct = ct.replace(/<Override[^>]*ContentType="application\/vnd\.ms-office\.vbaProject"[^>]*\/>/g, '');
+      ct = ct.replace(/<Default[^>]*ContentType="application\/vnd\.ms-office\.vbaProject"[^>]*\/>/g, '');
+      zipped['[Content_Types].xml'] = strToU8(ct);
+    }
+
+    // 3. workbook.xml.rels: Relationship zu vbaProject entfernen
+    if (zipped['xl/_rels/workbook.xml.rels']) {
+      let rels = strFromU8(zipped['xl/_rels/workbook.xml.rels']);
+      rels = rels.replace(/<Relationship[^>]*Type="[^"]*vbaProject"[^>]*\/>/g, '');
+      zipped['xl/_rels/workbook.xml.rels'] = strToU8(rels);
+    }
+
+    // 4. workbook.xml: codeName-Attribute entfernen (sind nur für VBA relevant)
+    if (zipped['xl/workbook.xml']) {
+      let wb = strFromU8(zipped['xl/workbook.xml']);
+      wb = wb.replace(/\s+codeName="[^"]*"/g, '');
+      zipped['xl/workbook.xml'] = strToU8(wb);
+    }
+
+    // 5. Worksheets: codeName-Attribute in sheetPr entfernen
+    for (const key of Object.keys(zipped)) {
+      if (/^xl\/worksheets\/sheet\d+\.xml$/.test(key)) {
+        let xml = strFromU8(zipped[key]);
+        if (xml.indexOf('codeName') !== -1) {
+          xml = xml.replace(/\s+codeName="[^"]*"/g, '');
+          zipped[key] = strToU8(xml);
+        }
+      }
+    }
+  }
+
   function exportXlsx() {
     if (!state.fileBuffer) { toast('Keine Datei geladen.', 'error'); return; }
     if (typeof fflate === 'undefined') {
@@ -1792,31 +1849,28 @@
         zipped[path] = strToU8(newXml);
       }
 
+      // Vor dem Zippen alle Makro-Komponenten entfernen, damit immer eine saubere
+      // .xlsx ohne Makros entsteht. Makros werden in der App nicht gebraucht und
+      // Excel mag das xlsm-Format nur, wenn die Endung auch passt — also einfacher
+      // weg damit.
+      stripMacros(zipped);
+
       // ZIP wieder packen — Level 6 ist Standard, gute Balance
       const newBytes = fflate.zipSync(zipped, { level: 6 });
 
-      // Download anstoßen
-      // Macro-Detection NICHT anhand des Dateinamens (kann auch nach ebox21-Download
-      // umbenannt sein), sondern direkt am Content: Hat das ZIP eine vbaProject.bin
-      // oder ist im Content-Types ein macroEnabled-Typ deklariert? Dann ist es xlsm.
-      let isMacro = false;
-      if (zipped['xl/vbaProject.bin']) {
-        isMacro = true;
-      } else if (zipped['[Content_Types].xml']) {
-        const ct = strFromU8(zipped['[Content_Types].xml']);
-        if (/macroEnabled/i.test(ct)) isMacro = true;
-      }
-      const mime = isMacro
-        ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
-        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      // Immer als .xlsx exportieren (ohne Makros, siehe stripMacros oben).
+      const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       const blob = new Blob([newBytes], { type: mime });
-      const filename = generateExportFilename(isMacro ? 'xlsm' : 'xlsx');
+      const filename = generateExportFilename('xlsx');
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = filename;
+      a.type = mime;
+      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 200);
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 
       state.exported = true;
       flushSave();
@@ -1833,11 +1887,18 @@
   function showUploadPrompt(filename) {
     const uploadUrl = getEboxLink('upload');
     if (!uploadUrl) return;
+    const isXlsm = filename.toLowerCase().endsWith('.xlsm');
     const card = els.modal.querySelector('.modal-card');
     let extra = card.querySelector('.modal-extra');
     if (extra) extra.remove();
     extra = document.createElement('div');
     extra.className = 'modal-extra';
+    // Bei xlsm-Dateien zusätzlich den Hinweis einblenden, dass die Endung wichtig ist
+    const xlsmHint = isXlsm
+      ? `<div style="background: #fff7e6; border: 1px solid #f0c060; border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 13px; line-height: 1.45; color: #6b4a00;">
+          <strong>Wichtig:</strong> Die Datei muss die Endung <code>.xlsm</code> behalten. Falls Safari sie als <code>.xlsx</code> ablegt, in der Files-App auf die Datei lang tippen → Umbenennen → Endung auf <code>.xlsm</code> ändern. Excel zeigt sonst „Datei beschädigt".
+        </div>`
+      : '';
     extra.innerHTML = `
       <div style="background: var(--bg); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;">
         <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">Exportiert</div>
@@ -1846,6 +1907,7 @@
       <p style="margin: 0; font-size: 14px; color: var(--text-soft); line-height: 1.5;">
         Datei liegt jetzt im Downloads-Ordner. Soll sie direkt in ebox21 hochgeladen werden?
       </p>
+      ${xlsmHint}
     `;
     card.insertBefore(extra, card.querySelector('.modal-actions'));
 
@@ -1880,7 +1942,17 @@
     const d = new Date();
     const pad = n => String(n).padStart(2, '0');
     const stamp = `${pad(d.getDate())}${pad(d.getMonth() + 1)}${d.getFullYear()}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-    return `abnahme_${stamp}.${ext || 'xlsx'}`;
+    // Original-Dateinamen ohne Endung als Basis nehmen, damit sich die hochgeladene
+    // Datei in ebox21 sofort der Quelle zuordnen lässt.
+    let base = 'abnahme';
+    if (state.filename) {
+      base = state.filename.replace(/\.[^.]+$/, '').trim();
+      // Falls der Name selbst schon einen vorherigen Zeitstempel enthält
+      // (von vorherigen Exporten), den abschneiden, sonst wachsen die Namen ins Endlose.
+      base = base.replace(/_\d{8}_\d{4}$/, '');
+      if (!base) base = 'abnahme';
+    }
+    return `${base}_${stamp}.${ext || 'xlsx'}`;
   }
 
   /* ============================================================
@@ -2123,6 +2195,8 @@
     setupEboxLinks();
 
     els.manageBtn.addEventListener('click', () => navigateTo('sessions'));
+    const helpBtn = document.getElementById('helpBtn');
+    if (helpBtn) helpBtn.addEventListener('click', () => showTutorial(true));
     els.backBtn.addEventListener('click', () => navigateBack());
 
     els.exportBtn.addEventListener('click', exportXlsx);
@@ -2151,21 +2225,27 @@
     initTutorial();
   }
 
-  function initTutorial() {
-    let dontShow = false;
-    try { dontShow = localStorage.getItem('abnahme:tutorialHide') === '1'; } catch (_) {}
+  function showTutorial(force) {
     const tut = document.getElementById('tutorial');
     if (!tut) return;
-    if (dontShow) {
-      tut.hidden = true;
-      return;
+    if (!force) {
+      let dontShow = false;
+      try { dontShow = localStorage.getItem('abnahme:tutorialHide') === '1'; } catch (_) {}
+      if (dontShow) {
+        tut.hidden = true;
+        return;
+      }
     }
     tut.hidden = false;
     const closeBtn = document.getElementById('tutorialClose');
     const okBtn = document.getElementById('tutorialOk');
     const dontShowCb = document.getElementById('tutorialDontShow');
+    // Beim manuellen Aufruf (force) macht "nicht mehr zeigen" wenig Sinn → ausblenden
+    const dontShowWrap = dontShowCb ? dontShowCb.closest('label') : null;
+    if (dontShowWrap) dontShowWrap.style.display = force ? 'none' : '';
+    if (dontShowCb) dontShowCb.checked = false;
     const close = () => {
-      if (dontShowCb && dontShowCb.checked) {
+      if (!force && dontShowCb && dontShowCb.checked) {
         try { localStorage.setItem('abnahme:tutorialHide', '1'); } catch (_) {}
       }
       tut.hidden = true;
@@ -2173,6 +2253,10 @@
     if (closeBtn) closeBtn.onclick = close;
     if (okBtn) okBtn.onclick = close;
     tut.onclick = e => { if (e.target === tut) close(); };
+  }
+
+  function initTutorial() {
+    showTutorial(false);
   }
 
   if (document.readyState === 'loading') {
