@@ -1,23 +1,27 @@
 /* ============================================================
-   Abnahme — Service Worker
+   Abnahme — Service Worker v3
    App-Shell-Caching + Offline-Fallback
    ============================================================ */
-const VERSION = 'abnahme-v1';
+const VERSION = 'abnahme-v3';
 const SHELL = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
+  './logo.png',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap'
+  './icon-maskable-512.png',
+  './apple-touch-icon.png',
+  './favicon-32.png',
+  'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js',
+  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(VERSION).then(c => c.addAll(SHELL).catch(() => {/* ignore individual failures */}))
+    caches.open(VERSION).then(c => c.addAll(SHELL).catch(() => {}))
       .then(() => self.skipWaiting())
   );
 });
@@ -34,7 +38,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
-  // HTML-Navigation: Network-first (für Updates), Fallback Cache
+  // HTML-Navigation: Network-first für Updates, Fallback Cache
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
     e.respondWith(
       fetch(req).then(res => {
@@ -46,7 +50,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Sonst: Cache-first, im Hintergrund aktualisieren (stale-while-revalidate)
+  // Cache-first für statische Assets
   e.respondWith(
     caches.match(req).then(cached => {
       const fetchPromise = fetch(req).then(res => {

@@ -20,6 +20,7 @@
     sheets: [],
     matrix: null,                  // { vehicles: [...], sheets: [...] }
     annotations: {},
+    extraDefects: {},              // { sheetName: { vehicleName: [{ id, text, photos: [] }] } }
     currentSheetIdx: 0,
     currentVehicle: null,
     subVehicles: [],               // Bis zu 3 untergeordnete Fahrzeuge (Sitzungs-weit)
@@ -53,6 +54,7 @@
       vehicles: $('#screen-vehicles'),
       sheets: $('#screen-sheets'),
       items: $('#screen-items'),
+      extras: $('#screen-extras'),
       sessions: $('#screen-sessions')
     },
     fileInput: $('#fileInput'),
@@ -174,7 +176,7 @@
       const stats = computeOverallStats();
       const record = {
         id: state.sessionId, filename: state.filename, fileBuffer: state.fileBuffer,
-        mode: state.mode, annotations: state.annotations,
+        mode: state.mode, annotations: state.annotations, extraDefects: state.extraDefects,
         createdAt: state.createdAt, modifiedAt: state.modifiedAt,
         exported: state.exported, stats
       };
@@ -464,7 +466,7 @@
       const matrix = parseWorkbookMatrix(buffer);
       const sessionId = makeId(filename);
       Object.assign(state, {
-        sessionId, filename, fileBuffer: buffer, annotations: {},
+        sessionId, filename, fileBuffer: buffer, annotations: {}, extraDefects: {},
         currentSheetIdx: 0, currentVehicle: null, subVehicles: [], pendingApplySubs: new Set(), currentItemIdx: 0,
         exported: false, dirty: false,
         createdAt: Date.now(), modifiedAt: Date.now(), screenStack: []
@@ -571,6 +573,7 @@
     Object.assign(state, {
       sessionId: record.id, filename: record.filename, fileBuffer: record.fileBuffer,
       annotations: record.annotations || {},
+      extraDefects: record.extraDefects || {},
       createdAt: record.createdAt || Date.now(), modifiedAt: record.modifiedAt || Date.now(),
       exported: !!record.exported, dirty: false,
       currentSheetIdx: 0, currentVehicle: null, subVehicles: [], pendingApplySubs: new Set(), currentItemIdx: 0,
@@ -626,7 +629,9 @@
       const next = { ...cur, ...patch };
       // Sobald der User aktiv etwas ändert, ist es keine reine Datei-Übernahme mehr
       delete next.fromFile;
-      if (next.status === 'open' && !next.note) {
+      // Annotation nur löschen, wenn weder Note noch Fotos noch Status gesetzt sind
+      const hasPhotos = next.photos && next.photos.length > 0;
+      if (next.status === 'open' && !next.note && !hasPhotos) {
         delete state.annotations[sheetName][rowIdx][vehicleName];
         if (Object.keys(state.annotations[sheetName][rowIdx]).length === 0) {
           delete state.annotations[sheetName][rowIdx];
@@ -638,7 +643,8 @@
       const cur = state.annotations[sheetName][rowIdx] || { status: 'open', note: '' };
       const next = { ...cur, ...patch };
       delete next.fromFile;
-      if (next.status === 'open' && !next.note) delete state.annotations[sheetName][rowIdx];
+      const hasPhotos = next.photos && next.photos.length > 0;
+      if (next.status === 'open' && !next.note && !hasPhotos) delete state.annotations[sheetName][rowIdx];
       else state.annotations[sheetName][rowIdx] = next;
     }
     scheduleSave();
@@ -730,6 +736,7 @@
     }
     else if (name === 'sheets') renderSheets();
     else if (name === 'items') initWizard();
+    else if (name === 'extras') renderExtraDefects();
     else if (name === 'sessions') renderSessions();
     else if (name === 'start') {
       els.progressContainer.hidden = true;
@@ -1123,6 +1130,9 @@
 
     // Mängel-Notizfeld nur sichtbar, wenn Status = Mangel oder bereits Notiz vorhanden
     const showNote = ann.status === 'defect' || (ann.note && ann.note.trim() !== '');
+    const photos = ann.photos || [];
+    const showPhotos = ann.status === 'defect' || photos.length > 0;
+    const photoHtml = showPhotos ? renderPhotoSection(photos) : '';
     const noteHtml = `
       <div class="wizard-note" id="wizNoteWrap" ${showNote ? '' : 'hidden'}>
         <div class="note-label">
@@ -1130,6 +1140,9 @@
           Mangel beschreiben
         </div>
         <textarea class="note-input" id="wizNoteInput" rows="3" placeholder="Was ist nicht in Ordnung an ${escapeHtml(state.currentVehicle)}?" autocapitalize="sentences" autocomplete="off">${escapeHtml(ann.note || '')}</textarea>
+      </div>
+      <div class="wizard-photos" id="wizPhotosWrap" ${showPhotos ? '' : 'hidden'}>
+        ${photoHtml}
       </div>
     `;
 
@@ -1220,12 +1233,32 @@
       chip.addEventListener('click', () => onApplyClick(chip.dataset.sub));
     });
 
+    // Foto-Bereich initialisieren
+    bindPhotoHandlers();
+
+    // Extras-Counter aktualisieren
+    updateExtrasCount();
+
     // Navigation aktivieren
     els.wizPrev.disabled = state.currentItemIdx === 0;
     els.wizNext.disabled = state.currentItemIdx === total - 1;
 
     // Header aktualisieren (Stats können sich geändert haben)
     updateHeader();
+  }
+
+  function updateExtrasCount() {
+    const sh = state.matrix && state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    const badge = document.getElementById('wizExtrasCount');
+    if (!badge || !sh || !v) return;
+    const n = getExtraDefects(sh.name, v).length;
+    if (n > 0) {
+      badge.textContent = String(n);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
   }
 
   function autoresizeNote(ta) {
@@ -1257,6 +1290,391 @@
         }
       }
     }
+  }
+
+  /* ============================================================
+     Foto-Anhänge an Mangel-Positionen
+     ============================================================
+     Fotos werden als Data-URI in der Annotation gespeichert.
+     Maximal 3 pro Position. Beim Export werden sie in einen
+     Bilder-Ordner extrahiert und mit der Excel als ZIP gebündelt.
+     ============================================================ */
+  const MAX_PHOTOS_PER_POSITION = 3;
+  const MAX_PHOTO_WIDTH = 1600; // px, runter-skalieren für Speicher
+
+  function renderPhotoSection(photos) {
+    const slots = [];
+    for (let i = 0; i < MAX_PHOTOS_PER_POSITION; i++) {
+      const p = photos[i];
+      if (p) {
+        slots.push(`
+          <div class="photo-slot filled" data-idx="${i}">
+            <img src="${p.dataUri}" alt="Foto ${i + 1}">
+            <button type="button" class="photo-remove" data-idx="${i}" aria-label="Foto entfernen">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `);
+      } else if (photos.length === i) {
+        // Erster leerer Slot ist der Add-Button
+        slots.push(`
+          <label class="photo-slot empty" for="photoInput">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="photo-slot-label">Foto hinzufügen</span>
+          </label>
+        `);
+      }
+      // Restliche Slots leer lassen
+    }
+    return `
+      <div class="photo-label">
+        <span class="dot-defect" style="width:6px;height:6px;border-radius:50%;background:var(--status-defect);display:inline-block;"></span>
+        Fotos zum Mangel <span class="photo-count">(${photos.length}/${MAX_PHOTOS_PER_POSITION})</span>
+      </div>
+      <div class="photo-grid">${slots.join('')}</div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+    `;
+  }
+
+  function bindPhotoHandlers() {
+    const wrap = els.wizCard.querySelector('#wizPhotosWrap');
+    if (!wrap) return;
+    const input = wrap.querySelector('#photoInput');
+    if (input) {
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        if (file) {
+          await addPhoto(file);
+        }
+        input.value = '';
+      });
+    }
+    wrap.querySelectorAll('.photo-remove').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        removePhoto(parseInt(btn.dataset.idx, 10));
+      });
+    });
+    // Tap auf gefülltes Foto: Vollbild-Ansicht
+    wrap.querySelectorAll('.photo-slot.filled img').forEach(img => {
+      img.addEventListener('click', () => {
+        showPhotoFullscreen(img.src);
+      });
+    });
+  }
+
+  async function addPhoto(file) {
+    const sh = state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    const row = state.visibleItems[state.currentItemIdx];
+    if (!sh || !v || !row) return;
+    const ann = getAnnotation(sh.name, row.rowIdx, v);
+    const photos = (ann.photos || []).slice();
+    if (photos.length >= MAX_PHOTOS_PER_POSITION) {
+      toast('Maximal 3 Fotos pro Position.', 'error');
+      return;
+    }
+    try {
+      const dataUri = await processImageFile(file);
+      photos.push({
+        dataUri,
+        addedAt: Date.now(),
+        id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      });
+      setAnnotation(sh.name, row.rowIdx, { photos }, v);
+      // Photos-Sektion neu rendern (ohne komplettes renderWizard, damit Note-Input nicht fokus verliert)
+      refreshPhotoSection();
+      toast(`Foto ${photos.length}/${MAX_PHOTOS_PER_POSITION} hinzugefügt`, 'success');
+    } catch (err) {
+      console.error(err);
+      toast('Foto konnte nicht verarbeitet werden.', 'error');
+    }
+  }
+
+  function removePhoto(idx) {
+    const sh = state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    const row = state.visibleItems[state.currentItemIdx];
+    if (!sh || !v || !row) return;
+    const ann = getAnnotation(sh.name, row.rowIdx, v);
+    const photos = (ann.photos || []).slice();
+    if (idx < 0 || idx >= photos.length) return;
+    photos.splice(idx, 1);
+    setAnnotation(sh.name, row.rowIdx, { photos }, v);
+    refreshPhotoSection();
+  }
+
+  function refreshPhotoSection() {
+    const sh = state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    const row = state.visibleItems[state.currentItemIdx];
+    if (!sh || !v || !row) return;
+    const ann = getAnnotation(sh.name, row.rowIdx, v);
+    const wrap = els.wizCard.querySelector('#wizPhotosWrap');
+    if (!wrap) return;
+    const photos = ann.photos || [];
+    const show = ann.status === 'defect' || photos.length > 0;
+    wrap.hidden = !show;
+    if (show) {
+      wrap.innerHTML = renderPhotoSection(photos);
+      bindPhotoHandlers();
+    }
+  }
+
+  // Bild als Data-URI laden, mit Skalierung auf max. MAX_PHOTO_WIDTH
+  function processImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Bild kann nicht gelesen werden'));
+        img.onload = () => {
+          try {
+            const scale = Math.min(1, MAX_PHOTO_WIDTH / img.width);
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            // JPEG mit ~82% Qualität — gute Balance Größe/Qualität
+            const dataUri = canvas.toDataURL('image/jpeg', 0.82);
+            resolve(dataUri);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function showPhotoFullscreen(src) {
+    let overlay = document.getElementById('photoOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'photoOverlay';
+      overlay.className = 'photo-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <button class="photo-overlay-close" aria-label="Schließen">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <img src="${src}" alt="Foto in groß">
+    `;
+    overlay.hidden = false;
+    const close = () => { overlay.hidden = true; };
+    overlay.querySelector('.photo-overlay-close').onclick = close;
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  }
+
+  /* ============================================================
+     Freie Mängel (Zusätzliche Mängel pro Sheet+Fahrzeug)
+     ============================================================ */
+  function getExtraDefects(sheetName, vehicleName) {
+    const sh = state.extraDefects[sheetName];
+    if (!sh) return [];
+    return sh[vehicleName] || [];
+  }
+
+  function setExtraDefects(sheetName, vehicleName, list) {
+    if (!state.extraDefects[sheetName]) state.extraDefects[sheetName] = {};
+    if (list && list.length) {
+      state.extraDefects[sheetName][vehicleName] = list;
+    } else {
+      delete state.extraDefects[sheetName][vehicleName];
+      if (Object.keys(state.extraDefects[sheetName]).length === 0) {
+        delete state.extraDefects[sheetName];
+      }
+    }
+    scheduleSave();
+  }
+
+  function addExtraDefect(sheetName, vehicleName) {
+    const list = getExtraDefects(sheetName, vehicleName).slice();
+    list.push({
+      id: `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text: '',
+      photos: [],
+      createdAt: Date.now()
+    });
+    setExtraDefects(sheetName, vehicleName, list);
+    return list[list.length - 1].id;
+  }
+
+  function updateExtraDefect(sheetName, vehicleName, id, patch) {
+    const list = getExtraDefects(sheetName, vehicleName).slice();
+    const idx = list.findIndex(d => d.id === id);
+    if (idx < 0) return;
+    list[idx] = { ...list[idx], ...patch };
+    setExtraDefects(sheetName, vehicleName, list);
+  }
+
+  function removeExtraDefect(sheetName, vehicleName, id) {
+    const list = getExtraDefects(sheetName, vehicleName).filter(d => d.id !== id);
+    setExtraDefects(sheetName, vehicleName, list);
+  }
+
+  async function addPhotoToExtraDefect(sheetName, vehicleName, id, file) {
+    const list = getExtraDefects(sheetName, vehicleName).slice();
+    const idx = list.findIndex(d => d.id === id);
+    if (idx < 0) return;
+    const photos = (list[idx].photos || []).slice();
+    if (photos.length >= MAX_PHOTOS_PER_POSITION) {
+      toast('Maximal 3 Fotos pro Mangel.', 'error');
+      return;
+    }
+    try {
+      const dataUri = await processImageFile(file);
+      photos.push({
+        dataUri,
+        addedAt: Date.now(),
+        id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      });
+      list[idx] = { ...list[idx], photos };
+      setExtraDefects(sheetName, vehicleName, list);
+      renderExtraDefectsList();
+      toast(`Foto ${photos.length}/${MAX_PHOTOS_PER_POSITION} hinzugefügt`, 'success');
+    } catch (err) {
+      toast('Foto konnte nicht verarbeitet werden.', 'error');
+    }
+  }
+
+  function removePhotoFromExtraDefect(sheetName, vehicleName, id, photoIdx) {
+    const list = getExtraDefects(sheetName, vehicleName).slice();
+    const idx = list.findIndex(d => d.id === id);
+    if (idx < 0) return;
+    const photos = (list[idx].photos || []).slice();
+    photos.splice(photoIdx, 1);
+    list[idx] = { ...list[idx], photos };
+    setExtraDefects(sheetName, vehicleName, list);
+    renderExtraDefectsList();
+  }
+
+  // Screen: Liste der freien Mängel für aktuelles Sheet+Fahrzeug
+  function showExtraDefects() {
+    if (state.mode !== 'matrix' || !state.currentVehicle) return;
+    navigateTo('extras');
+  }
+
+  function renderExtraDefects() {
+    const sh = state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    if (!sh || !v) return;
+    const veh = state.matrix.vehicles.find(x => x.name === v);
+    const titleEl = document.getElementById('extrasTitle');
+    const subEl = document.getElementById('extrasSubtitle');
+    if (titleEl) titleEl.textContent = 'Zusätzliche Mängel';
+    if (subEl) subEl.textContent = `${v}${veh && veh.kennz ? ' · ' + veh.kennz : ''} · ${sh.name}`;
+    renderExtraDefectsList();
+  }
+
+  function renderExtraDefectsList() {
+    const sh = state.matrix.sheets[state.currentSheetIdx];
+    const v = state.currentVehicle;
+    if (!sh || !v) return;
+    const list = getExtraDefects(sh.name, v);
+    const listEl = document.getElementById('extrasList');
+    if (!listEl) return;
+    if (list.length === 0) {
+      listEl.innerHTML = `
+        <div class="extras-empty">
+          <p>Noch keine zusätzlichen Mängel erfasst.</p>
+          <p class="hint">Hier kannst du Mängel eintragen, die zu keiner der Standard-Positionen passen — z. B. Auffälligkeiten am Lack, fehlende Aufkleber oder zusätzliche Defekte.</p>
+        </div>
+      `;
+      return;
+    }
+    listEl.innerHTML = list.map((d, idx) => `
+      <div class="extra-card" data-id="${d.id}">
+        <div class="extra-head">
+          <span class="extra-num">${idx + 1}</span>
+          <button type="button" class="extra-remove" data-id="${d.id}" aria-label="Mangel entfernen">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          </button>
+        </div>
+        <textarea class="extra-text" data-id="${d.id}" rows="2" placeholder="Mangel beschreiben…" autocapitalize="sentences">${escapeHtml(d.text || '')}</textarea>
+        <div class="extra-photos">
+          ${renderExtraPhotos(d)}
+        </div>
+      </div>
+    `).join('');
+
+    // Event-Handler
+    listEl.querySelectorAll('.extra-text').forEach(ta => {
+      autoresizeNote(ta);
+      ta.addEventListener('input', () => {
+        autoresizeNote(ta);
+        updateExtraDefect(sh.name, v, ta.dataset.id, { text: ta.value });
+      });
+    });
+    listEl.querySelectorAll('.extra-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ok = await confirmModal('Mangel entfernen?', 'Dieser Eintrag und seine Fotos werden gelöscht.');
+        if (!ok) return;
+        removeExtraDefect(sh.name, v, btn.dataset.id);
+        renderExtraDefectsList();
+      });
+    });
+    listEl.querySelectorAll('.extra-photo-add').forEach(label => {
+      const input = label.querySelector('input[type=file]');
+      if (input) {
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0];
+          if (file) {
+            await addPhotoToExtraDefect(sh.name, v, label.dataset.id, file);
+          }
+          input.value = '';
+        });
+      }
+    });
+    listEl.querySelectorAll('.extra-photo-remove').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        removePhotoFromExtraDefect(sh.name, v, btn.dataset.id, parseInt(btn.dataset.idx, 10));
+      });
+    });
+    listEl.querySelectorAll('.extra-photo-slot.filled img').forEach(img => {
+      img.addEventListener('click', () => showPhotoFullscreen(img.src));
+    });
+  }
+
+  function renderExtraPhotos(defect) {
+    const photos = defect.photos || [];
+    const slots = [];
+    for (let i = 0; i < MAX_PHOTOS_PER_POSITION; i++) {
+      const p = photos[i];
+      if (p) {
+        slots.push(`
+          <div class="extra-photo-slot filled">
+            <img src="${p.dataUri}" alt="Foto ${i + 1}">
+            <button type="button" class="extra-photo-remove" data-id="${defect.id}" data-idx="${i}" aria-label="Foto entfernen">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `);
+      } else if (photos.length === i) {
+        slots.push(`
+          <label class="extra-photo-slot empty extra-photo-add" data-id="${defect.id}">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <input type="file" accept="image/*" capture="environment" hidden>
+          </label>
+        `);
+      }
+    }
+    return slots.join('');
   }
 
   // Toggle einer Sub-Markierung. Übernahme passiert beim nächsten Status-Klick im Master.
@@ -1412,6 +1830,8 @@
       const showNote = newStatus === 'defect' || (noteInput && noteInput.value.trim() !== '');
       noteWrap.hidden = !showNote;
     }
+    // Foto-Bereich analog ein/ausblenden
+    refreshPhotoSection();
 
     // Wenn Master einen Wert hat (done/defect) und es Markierungen gibt: jetzt übernehmen
     let appliedCount = 0;
@@ -1801,7 +2221,12 @@
 
       // Edits sammeln: pro Worksheet-Datei eine Map ref → value
       const editsPerSheet = new Map(); // path → { ref: value }
+      const extrasPerSheet = new Map(); // path → [{vehicle, text, photos}, ...] für Anhang
       let totalEdits = 0;
+      let totalExtras = 0;
+
+      // Foto-Sammelliste für ZIP
+      const photoFiles = []; // [{name, dataUri}]
 
       if (state.mode === 'matrix' && state.matrix) {
         for (const sh of state.matrix.sheets) {
@@ -1828,60 +2253,209 @@
               if (!editsPerSheet.has(sheetPath)) editsPerSheet.set(sheetPath, {});
               editsPerSheet.get(sheetPath)[ref] = newVal;
               totalEdits++;
+              // Fotos sammeln
+              if (a.photos && a.photos.length) {
+                for (let i = 0; i < a.photos.length; i++) {
+                  const photo = a.photos[i];
+                  const sheetSafe = sanitizeFilename(sh.name);
+                  const vehSafe = sanitizeFilename(veh.name);
+                  const posLabel = row.pos ? `Pos${sanitizeFilename(row.pos)}` : `Zeile${row.rowIdx + 1}`;
+                  photoFiles.push({
+                    name: `Fotos/${sheetSafe}/${vehSafe}/${posLabel}_${i + 1}.jpg`,
+                    dataUri: photo.dataUri
+                  });
+                }
+              }
+            }
+          }
+
+          // Freie Mängel für dieses Sheet sammeln
+          const sheetExtras = state.extraDefects[sh.name] || {};
+          for (const veh of state.matrix.vehicles) {
+            const list = sheetExtras[veh.name] || [];
+            for (const def of list) {
+              if (!def.text && (!def.photos || !def.photos.length)) continue;
+              if (!extrasPerSheet.has(sheetPath)) extrasPerSheet.set(sheetPath, []);
+              extrasPerSheet.get(sheetPath).push({ vehicle: veh.name, defect: def });
+              totalExtras++;
+              if (def.photos && def.photos.length) {
+                for (let i = 0; i < def.photos.length; i++) {
+                  const photo = def.photos[i];
+                  const sheetSafe = sanitizeFilename(sh.name);
+                  const vehSafe = sanitizeFilename(veh.name);
+                  photoFiles.push({
+                    name: `Fotos/${sheetSafe}/${vehSafe}/Zusatz-${def.id}_${i + 1}.jpg`,
+                    dataUri: photo.dataUri
+                  });
+                }
+              }
             }
           }
         }
       }
 
-      if (totalEdits === 0) {
+      if (totalEdits === 0 && totalExtras === 0) {
         toast('Keine Änderungen zum Exportieren.', 'error');
         return;
       }
 
-      // Worksheets patchen
+      // Worksheets patchen (Standard-Zellen)
       for (const [path, edits] of editsPerSheet) {
         if (!zipped[path]) {
           console.warn('Worksheet nicht gefunden:', path);
           continue;
         }
         const origXml = strFromU8(zipped[path]);
-        const newXml = patchSheetXml(origXml, edits);
+        let newXml = patchSheetXml(origXml, edits);
+        // Wenn es für dieses Sheet freie Mängel gibt: am Ende anhängen
+        const extras = extrasPerSheet.get(path);
+        if (extras && extras.length) {
+          newXml = appendExtraDefectsToSheet(newXml, extras);
+        }
+        zipped[path] = strToU8(newXml);
+      }
+      // Auch Sheets bedienen, die nur freie Mängel haben (keine normalen Edits)
+      for (const [path, extras] of extrasPerSheet) {
+        if (editsPerSheet.has(path)) continue; // schon bedient
+        if (!zipped[path]) continue;
+        const origXml = strFromU8(zipped[path]);
+        const newXml = appendExtraDefectsToSheet(origXml, extras);
         zipped[path] = strToU8(newXml);
       }
 
-      // Vor dem Zippen alle Makro-Komponenten entfernen, damit immer eine saubere
-      // .xlsx ohne Makros entsteht. Makros werden in der App nicht gebraucht und
-      // Excel mag das xlsm-Format nur, wenn die Endung auch passt — also einfacher
-      // weg damit.
+      // Makros entfernen
       stripMacros(zipped);
 
-      // ZIP wieder packen — Level 6 ist Standard, gute Balance
-      const newBytes = fflate.zipSync(zipped, { level: 6 });
+      // ZIP packen
+      const xlsxBytes = fflate.zipSync(zipped, { level: 6 });
 
-      // Immer als .xlsx exportieren (ohne Makros, siehe stripMacros oben).
-      const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      const blob = new Blob([newBytes], { type: mime });
-      const filename = generateExportFilename('xlsx');
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.type = mime;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      const baseFilename = generateExportFilename('xlsx');
+      const baseName = baseFilename.replace(/\.xlsx$/i, '');
+      const hasPhotos = photoFiles.length > 0;
+
+      if (!hasPhotos) {
+        // Reiner Excel-Export (wie bisher)
+        const blob = new Blob([xlsxBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        triggerDownload(blob, baseFilename);
+        state.exported = true;
+        flushSave();
+        toast(`Exportiert: ${baseFilename} (${totalEdits + totalExtras} Änderungen)`, 'success');
+        setTimeout(() => showUploadPrompt(baseFilename), 800);
+        return;
+      }
+
+      // Mit Fotos: ZIP-Bündel mit Excel + Fotos-Ordner
+      const bundleFiles = {};
+      bundleFiles[baseFilename] = xlsxBytes;
+      for (const pf of photoFiles) {
+        const u8 = dataUriToBytes(pf.dataUri);
+        if (u8) bundleFiles[pf.name] = u8;
+      }
+      // Kleine README im ZIP
+      const readme = [
+        'Abnahme — Export mit Fotos',
+        '',
+        `Excel-Datei: ${baseFilename}`,
+        `Anzahl Fotos: ${photoFiles.length}`,
+        '',
+        'Die Fotos liegen im Ordner "Fotos" gegliedert nach Tabellenblatt und Fahrzeug.',
+        'Position bzw. Mangel-ID ist im Dateinamen kodiert.'
+      ].join('\n');
+      bundleFiles['README.txt'] = strToU8(readme);
+
+      const bundleBytes = fflate.zipSync(bundleFiles, { level: 6 });
+      const zipName = `${baseName}.zip`;
+      const blob = new Blob([bundleBytes], { type: 'application/zip' });
+      triggerDownload(blob, zipName);
 
       state.exported = true;
       flushSave();
-      toast(`Exportiert: ${filename} (${totalEdits} Änderungen)`, 'success');
-
-      // Nach kurzer Verzögerung Modal mit Upload-Vorschlag
-      setTimeout(() => showUploadPrompt(filename), 800);
+      const photoMsg = photoFiles.length === 1 ? '1 Foto' : `${photoFiles.length} Fotos`;
+      toast(`Exportiert: ${zipName} (${totalEdits + totalExtras} Änderungen, ${photoMsg})`, 'success');
+      setTimeout(() => showUploadPrompt(zipName), 800);
     } catch (err) {
       console.error(err);
       toast('Export fehlgeschlagen: ' + (err.message || err), 'error');
     }
+  }
+
+  function sanitizeFilename(name) {
+    return String(name).replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'x';
+  }
+
+  function dataUriToBytes(dataUri) {
+    try {
+      const m = dataUri.match(/^data:[^;]+;base64,(.+)$/);
+      if (!m) return null;
+      const bin = atob(m[1]);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    } catch (_) { return null; }
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+
+  // Hängt einen Block "Zusätzliche Mängel" ans Ende eines Worksheet-XML an.
+  // Die Zeilen werden mit einer großen Zeilennummer angehängt (originalRowMax + 5 Spalte fortlaufend).
+  function appendExtraDefectsToSheet(sheetXml, extras) {
+    // Größte vorhandene Zeilennummer finden
+    let maxRow = 0;
+    const rowMatches = sheetXml.matchAll(/<row\s[^>]*\br="(\d+)"/g);
+    for (const m of rowMatches) {
+      const n = parseInt(m[1], 10);
+      if (n > maxRow) maxRow = n;
+    }
+    let startRow = maxRow + 5; // Lücke zur Originaldatei
+
+    // XML für Header und Mangel-Zeilen erzeugen
+    const newRows = [];
+    // Header-Zeile
+    const headerRow = startRow;
+    newRows.push(
+      `<row r="${headerRow}">` +
+        `<c r="A${headerRow}" t="inlineStr"><is><t>Zusätzliche Mängel</t></is></c>` +
+      `</row>`
+    );
+    // Spalten-Überschriften
+    const colHdr = headerRow + 1;
+    newRows.push(
+      `<row r="${colHdr}">` +
+        `<c r="A${colHdr}" t="inlineStr"><is><t>Fahrzeug</t></is></c>` +
+        `<c r="B${colHdr}" t="inlineStr"><is><t>Beschreibung</t></is></c>` +
+        `<c r="C${colHdr}" t="inlineStr"><is><t>Fotos</t></is></c>` +
+      `</row>`
+    );
+    // Datenzeilen
+    let curRow = colHdr + 1;
+    for (const e of extras) {
+      const photoCount = e.defect.photos ? e.defect.photos.length : 0;
+      const photoInfo = photoCount > 0 ? `${photoCount} Foto${photoCount === 1 ? '' : 's'} (siehe Ordner)` : '';
+      newRows.push(
+        `<row r="${curRow}">` +
+          `<c r="A${curRow}" t="inlineStr"><is><t>${xmlEscape(e.vehicle)}</t></is></c>` +
+          `<c r="B${curRow}" t="inlineStr"><is><t>${xmlEscape(e.defect.text || '(ohne Beschreibung)')}</t></is></c>` +
+          `<c r="C${curRow}" t="inlineStr"><is><t>${xmlEscape(photoInfo)}</t></is></c>` +
+        `</row>`
+      );
+      curRow++;
+    }
+
+    const newRowsXml = newRows.join('');
+    // Vor </sheetData> einfügen
+    const closeTag = '</sheetData>';
+    const idx = sheetXml.lastIndexOf(closeTag);
+    if (idx < 0) return sheetXml; // ungewöhnlich, sicherheitshalber unverändert lassen
+    return sheetXml.slice(0, idx) + newRowsXml + sheetXml.slice(idx);
   }
 
   function showUploadPrompt(filename) {
@@ -2013,7 +2587,7 @@
     }
     Object.assign(state, {
       sessionId: null, fileBuffer: null, sheets: [], matrix: null, mode: 'list',
-      annotations: {}, dirty: false, exported: false, currentVehicle: null,
+      annotations: {}, extraDefects: {}, dirty: false, exported: false, currentVehicle: null,
       subVehicles: [], pendingApplySubs: new Set(),
       currentItemIdx: 0, visibleItems: [], screenStack: []
     });
@@ -2210,6 +2784,22 @@
     els.wizPrev.addEventListener('click', wizardPrev);
     els.wizNext.addEventListener('click', wizardNext);
     els.wizOverviewBtn.addEventListener('click', showOverview);
+    const wizExtrasBtn = document.getElementById('wizExtrasBtn');
+    if (wizExtrasBtn) wizExtrasBtn.addEventListener('click', showExtraDefects);
+    const extrasAddBtn = document.getElementById('extrasAddBtn');
+    if (extrasAddBtn) extrasAddBtn.addEventListener('click', () => {
+      const sh = state.matrix.sheets[state.currentSheetIdx];
+      const v = state.currentVehicle;
+      if (!sh || !v) return;
+      addExtraDefect(sh.name, v);
+      renderExtraDefectsList();
+      // Auf das neue (zuletzt eingefügte) Textfeld fokussieren
+      setTimeout(() => {
+        const fields = document.querySelectorAll('#extrasList .extra-text');
+        const last = fields[fields.length - 1];
+        if (last) last.focus();
+      }, 50);
+    });
 
     bindLifecycle();
     checkResume();

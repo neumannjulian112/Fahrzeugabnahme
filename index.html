@@ -7,12 +7,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Abnahme">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#0f141a">
+  <meta name="theme-color" content="#8E2E2D">
   <meta name="format-detection" content="telephone=no">
-  <title>Abnahme — Mobile Prüfung</title>
+  <title>Abnahme — Feuerwehr Frankfurt</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -179,7 +180,7 @@
 
       <footer class="app-footer">
         <span>Offline-fähig · Auto-Speicherung · iOS-optimiert</span>
-        <span class="app-footer-credit">v2.4 · von Julian</span>
+        <span class="app-footer-credit">v3.2 · von Julian</span>
       </footer>
     </section>
 
@@ -271,6 +272,14 @@
         </button>
       </div>
 
+      <div class="wizard-extras-link">
+        <button id="wizExtrasBtn" class="btn btn-link">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -3px; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Zusätzlichen Mangel erfassen</span>
+          <span id="wizExtrasCount" class="extras-count-badge" hidden>0</span>
+        </button>
+      </div>
+
       <!-- Versteckte Elemente für interne Logik / Stats-Berechnung im JS -->
       <span id="cntAll" hidden>0</span>
       <span id="cntOpen" hidden>0</span>
@@ -284,6 +293,26 @@
       <div id="itemList" hidden></div>
       <div id="emptyState" hidden></div>
       <button id="bulkExportBtn" hidden></button>
+    </section>
+
+    <!-- ===== Screen: Zusätzliche Mängel ===== -->
+    <section id="screen-extras" class="screen">
+      <div class="screen-head">
+        <div class="screen-eyebrow">FREIE EINGABE</div>
+        <h2 id="extrasTitle">Zusätzliche Mängel</h2>
+        <div class="screen-meta" id="extrasSubtitle">…</div>
+      </div>
+
+      <div id="extrasList" class="extras-list"></div>
+
+      <div class="action-row" style="margin-top: 16px;">
+        <button id="extrasAddBtn" class="btn btn-primary btn-compact">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+          <span>Mangel hinzufügen</span>
+        </button>
+      </div>
     </section>
 
     <!-- ===== Screen: Sessions ===== -->
