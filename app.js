@@ -542,7 +542,16 @@
     setSaveStatus('saving');
     els.saveText.textContent = 'Liest…';
     try {
+      const name = (file.name || '').toLowerCase();
       const buffer = await file.arrayBuffer();
+
+      // ZIP-Datei? → Excel-Dateien daraus extrahieren
+      const isZip = name.endsWith('.zip') || isZipBuffer(buffer);
+      if (isZip) {
+        await handleZipFile(buffer, file.name || 'archiv.zip');
+        return;
+      }
+
       await loadFromArrayBuffer(buffer, file.name || 'datei.xlsx');
     } catch (err) {
       console.error(err);
@@ -550,6 +559,144 @@
       setSaveStatus('ok');
     }
   }
+
+  // Prüft die ersten Bytes auf ZIP-Signatur (PK)
+  function isZipBuffer(buffer) {
+    const view = new Uint8Array(buffer, 0, Math.min(4, buffer.byteLength));
+    return view[0] === 0x50 && view[1] === 0x4B;
+  }
+
+  // ZIP-Inhalt analysieren, Excel-Dateien finden, ggf. Auswahl-Dialog zeigen
+  async function handleZipFile(buffer, zipName) {
+    if (typeof fflate === 'undefined') {
+      toast('ZIP-Unterstützung nicht verfügbar.', 'error');
+      setSaveStatus('ok');
+      return;
+    }
+    let entries;
+    try {
+      entries = fflate.unzipSync(new Uint8Array(buffer));
+    } catch (err) {
+      toast('ZIP-Datei konnte nicht gelesen werden.', 'error');
+      setSaveStatus('ok');
+      return;
+    }
+    // Excel-Dateien finden (nicht versteckte, keine Mac-Metadaten)
+    const excelEntries = Object.keys(entries).filter(name => {
+      if (name.startsWith('__MACOSX/')) return false;
+      if (name.split('/').pop().startsWith('.')) return false; // versteckte Dateien
+      return /\.(xlsx|xlsm|xls)$/i.test(name);
+    });
+
+    if (excelEntries.length === 0) {
+      toast('Keine Excel-Dateien in der ZIP gefunden.', 'error');
+      setSaveStatus('ok');
+      return;
+    }
+
+    if (excelEntries.length === 1) {
+      // Direkt laden
+      const path = excelEntries[0];
+      const bytes = entries[path];
+      const filename = path.split('/').pop();
+      await loadFromArrayBuffer(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), filename);
+      return;
+    }
+
+    // Mehrere Dateien → Auswahl-Dialog
+    setSaveStatus('ok');
+    els.saveText.textContent = 'Bereit';
+    showZipPicker(entries, excelEntries, zipName);
+  }
+
+  function showZipPicker(entries, excelPaths, zipName) {
+    const card = els.modal.querySelector('.modal-card');
+    let extra = card.querySelector('.modal-extra');
+    if (extra) extra.remove();
+    extra = document.createElement('div');
+    extra.className = 'modal-extra';
+
+    // Liste mit Dateigrößen und Pfaden
+    const items = excelPaths.map(path => {
+      const filename = path.split('/').pop();
+      const dirParts = path.split('/').slice(0, -1);
+      const dir = dirParts.length ? dirParts.join(' / ') : '';
+      const size = entries[path].byteLength;
+      const sizeKb = size > 1024 * 1024
+        ? `${(size / 1024 / 1024).toFixed(1)} MB`
+        : `${Math.round(size / 1024)} KB`;
+      return `
+        <button type="button" class="zip-pick-item" data-path="${escapeHtml(path)}">
+          <div class="zip-pick-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="zip-pick-text">
+            <div class="zip-pick-name">${escapeHtml(filename)}</div>
+            ${dir ? `<div class="zip-pick-dir">${escapeHtml(dir)}</div>` : ''}
+            <div class="zip-pick-size">${sizeKb}</div>
+          </div>
+          <div class="zip-pick-arrow">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    extra.innerHTML = `
+      <div style="background: var(--bg); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;">
+        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.1em;">ZIP-Archiv</div>
+        <div style="font-family: var(--font-mono); font-size: 13px; font-weight: 600;">${escapeHtml(zipName)}</div>
+      </div>
+      <p style="margin: 0 0 12px; font-size: 14px; color: var(--text-soft); line-height: 1.5;">
+        ${excelPaths.length} Excel-Dateien gefunden. Welche soll geöffnet werden?
+      </p>
+      <div class="zip-pick-list">${items}</div>
+    `;
+    card.insertBefore(extra, card.querySelector('.modal-actions'));
+
+    els.modalTitle.textContent = 'Datei aus ZIP wählen';
+    els.modalText.textContent = '';
+    els.modalCancel.textContent = 'Abbrechen';
+    els.modalOk.style.display = 'none';
+    els.modal.hidden = false;
+
+    extra.querySelectorAll('.zip-pick-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const path = btn.dataset.path;
+        const bytes = entries[path];
+        const filename = path.split('/').pop();
+        // Modal schließen
+        els.modal.hidden = true;
+        const e = card.querySelector('.modal-extra');
+        if (e) e.remove();
+        els.modalOk.style.display = '';
+        els.modalCancel.textContent = 'Abbrechen';
+        els.modalOk.textContent = 'OK';
+        // Laden
+        setSaveStatus('saving');
+        els.saveText.textContent = 'Liest…';
+        try {
+          await loadFromArrayBuffer(
+            bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+            filename
+          );
+        } catch (err) {
+          console.error(err);
+          toast('Datei konnte nicht geladen werden.', 'error');
+          setSaveStatus('ok');
+        }
+      });
+    });
+
+    _modalCloseCallback = () => {
+      const e = card.querySelector('.modal-extra');
+      if (e) e.remove();
+      els.modalOk.style.display = '';
+      els.modalOk.textContent = 'OK';
+      els.modalCancel.textContent = 'Abbrechen';
+    };
+  }
+
   async function loadFromUrl(url) {
     if (!url) return;
     setSaveStatus('saving');

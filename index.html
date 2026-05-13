@@ -138,10 +138,10 @@
           </span>
           <span class="btn-content">
             <span class="btn-label">Excel-Datei öffnen</span>
-            <span class="btn-sub">.xlsx aus den Dateien wählen</span>
+            <span class="btn-sub">.xlsx oder ZIP aus den Dateien wählen</span>
           </span>
         </label>
-        <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls" hidden>
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.zip,application/zip" hidden>
 
         <button id="resumeBtn" class="btn btn-resume" hidden>
           <span class="btn-icon">
@@ -180,7 +180,7 @@
 
       <footer class="app-footer">
         <span>Offline-fähig · Auto-Speicherung · iOS-optimiert</span>
-        <span class="app-footer-credit">v3.2 · von Julian</span>
+        <span class="app-footer-credit">v3.3 · von Julian</span>
       </footer>
     </section>
 
@@ -378,8 +378,8 @@
 
       <div class="manual-section">
         <h4>2. Datei laden</h4>
-        <p><strong>Excels von ebox21 holen</strong> öffnet den Freigabe-Ordner in einem neuen Tab. Du lädst dort die ZIP-Datei mit allen Protokollen herunter, entpackst sie in den Dateien-Ordner deines Geräts.</p>
-        <p>Über <strong>Excel-Datei öffnen</strong> wählst du die gewünschte Datei aus. Die App erkennt automatisch alle Fahrzeuge und Prüfkriterien.</p>
+        <p><strong>Excels von ebox21 holen</strong> öffnet den Freigabe-Ordner in einem neuen Tab. Du lädst dort die ZIP-Datei mit allen Protokollen herunter.</p>
+        <p>Über <strong>Excel-Datei öffnen</strong> wählst du eine Datei aus. Die App akzeptiert direkt Excel-Dateien (.xlsx, .xlsm) <em>oder</em> ZIP-Archive — bei einer ZIP wird der Inhalt automatisch entpackt und du bekommst eine Liste der enthaltenen Excel-Dateien zur Auswahl. So entfällt das manuelle Entpacken in der Files-App.</p>
         <p>Wurde die Datei bereits einmal bearbeitet, erscheint zusätzlich <strong>Letzte Bearbeitung fortsetzen</strong> — direkter Wiedereinstieg an der Stelle, wo du aufgehört hast.</p>
       </div>
 

@@ -2,7 +2,7 @@
    Abnahme — Service Worker v3
    App-Shell-Caching + Offline-Fallback
    ============================================================ */
-const VERSION = 'abnahme-v3';
+const VERSION = 'abnahme-v3-2';
 const SHELL = [
   './',
   './index.html',
@@ -37,6 +37,13 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+
+  // Cross-Origin-Requests gar nicht erst abfangen — der Browser handhabt sie direkt.
+  // Verhindert "Failed to convert value to 'Response'"-Fehler bei CORS-Blockaden.
+  const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
+  const isCdn = /cdn\.jsdelivr\.net/.test(url.hostname);
+  if (!sameOrigin && !isCdn) return;
 
   // HTML-Navigation: Network-first für Updates, Fallback Cache
   if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
